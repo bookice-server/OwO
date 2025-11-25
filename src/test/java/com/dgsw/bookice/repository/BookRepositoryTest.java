@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,7 +48,7 @@ class BookRepositoryTest {
                 .publisher("인사이트")
                 .isbn("9788966262281")
                 .price(36000)
-                .stockQuantity(0)  // 재고 없음
+                .stockQuantity(0)
                 .description("자바 플랫폼 Best Practice")
                 .build();
 
@@ -63,6 +64,28 @@ class BookRepositoryTest {
                 .build();
 
         bookRepository.saveAll(List.of(book1, book2, book3));
+    }
+
+    @Test
+    @DisplayName("도서 저장 및 조회")
+    void saveAndFindById() {
+        // given
+        Book newBook = Book.builder()
+                .title("테스트 주도 개발")
+                .author("켄트 벡")
+                .category("프로그래밍")
+                .price(25000)
+                .stockQuantity(50)
+                .build();
+
+        // when
+        Book saved = bookRepository.save(newBook);
+        Optional<Book> found = bookRepository.findById(saved.getId());
+
+        // then
+        assertThat(found).isPresent();
+        assertThat(found.get().getTitle()).isEqualTo("테스트 주도 개발");
+        assertThat(found.get().getAuthor()).isEqualTo("켄트 벡");
     }
 
     @Test
@@ -219,5 +242,79 @@ class BookRepositoryTest {
         // then
         assertThat(bookPage.getContent()).hasSize(3);
         assertThat(bookPage.getTotalElements()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("도서 수정")
+    void updateBook() {
+        // given
+        Book book = bookRepository.findById(book1.getId()).orElseThrow();
+
+        // when
+        book.update("클린 코드 개정판", "로버트 C. 마틴", "프로그래밍",
+                "인사이트", 35000, "개정판 설명");
+        bookRepository.flush();
+
+        // then
+        Book updated = bookRepository.findById(book1.getId()).orElseThrow();
+        assertThat(updated.getTitle()).isEqualTo("클린 코드 개정판");
+        assertThat(updated.getPrice()).isEqualTo(35000);
+    }
+
+    @Test
+    @DisplayName("도서 삭제")
+    void deleteBook() {
+        // given
+        Long bookId = book1.getId();
+
+        // when
+        bookRepository.delete(book1);
+        bookRepository.flush();
+
+        // then
+        Optional<Book> deleted = bookRepository.findById(bookId);
+        assertThat(deleted).isEmpty();
+    }
+
+    @Test
+    @DisplayName("재고 증가")
+    void increaseStock() {
+        // given
+        Book book = bookRepository.findById(book1.getId()).orElseThrow();
+        int initialStock = book.getStockQuantity();
+
+        // when
+        book.increaseStock(50);
+        bookRepository.flush();
+
+        // then
+        Book updated = bookRepository.findById(book1.getId()).orElseThrow();
+        assertThat(updated.getStockQuantity()).isEqualTo(initialStock + 50);
+    }
+
+    @Test
+    @DisplayName("재고 감소")
+    void decreaseStock() {
+        // given
+        Book book = bookRepository.findById(book1.getId()).orElseThrow();
+        int initialStock = book.getStockQuantity();
+
+        // when
+        book.decreaseStock(30);
+        bookRepository.flush();
+
+        // then
+        Book updated = bookRepository.findById(book1.getId()).orElseThrow();
+        assertThat(updated.getStockQuantity()).isEqualTo(initialStock - 30);
+    }
+
+    @Test
+    @DisplayName("전체 도서 개수 조회")
+    void countAll() {
+        // when
+        long count = bookRepository.count();
+
+        // then
+        assertThat(count).isEqualTo(3);
     }
 }

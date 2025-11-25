@@ -171,6 +171,104 @@ class BookServiceTest {
     }
 
     @Test
+    @DisplayName("제목으로 검색 성공")
+    void searchByTitle_Success() {
+        // given
+        List<Book> books = Arrays.asList(book);
+        given(bookRepository.findByTitleContaining(anyString())).willReturn(books);
+
+        // when
+        List<BookResponse> responses = bookService.searchByTitle("클린");
+
+        // then
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getTitle()).contains("클린");
+        verify(bookRepository, times(1)).findByTitleContaining(anyString());
+    }
+
+    @Test
+    @DisplayName("저자로 검색 성공")
+    void searchByAuthor_Success() {
+        // given
+        List<Book> books = Arrays.asList(book);
+        given(bookRepository.findByAuthorContaining(anyString())).willReturn(books);
+
+        // when
+        List<BookResponse> responses = bookService.searchByAuthor("마틴");
+
+        // then
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getAuthor()).contains("마틴");
+        verify(bookRepository, times(1)).findByAuthorContaining(anyString());
+    }
+
+    @Test
+    @DisplayName("카테고리로 검색 성공")
+    void searchByCategory_Success() {
+        // given
+        List<Book> books = Arrays.asList(book);
+        given(bookRepository.findByCategory(anyString())).willReturn(books);
+
+        // when
+        List<BookResponse> responses = bookService.searchByCategory("프로그래밍");
+
+        // then
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getCategory()).isEqualTo("프로그래밍");
+        verify(bookRepository, times(1)).findByCategory(anyString());
+    }
+
+    @Test
+    @DisplayName("가격 범위로 검색 성공")
+    void searchByPriceRange_Success() {
+        // given
+        List<Book> books = Arrays.asList(book);
+        given(bookRepository.findByPriceRange(anyInt(), anyInt())).willReturn(books);
+
+        // when
+        List<BookResponse> responses = bookService.searchByPriceRange(30000, 35000);
+
+        // then
+        assertThat(responses).hasSize(1);
+        verify(bookRepository, times(1)).findByPriceRange(anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("재고 있는 도서 조회 성공")
+    void getBooksInStock_Success() {
+        // given
+        List<Book> books = Arrays.asList(book);
+        given(bookRepository.findBooksInStock()).willReturn(books);
+
+        // when
+        List<BookResponse> responses = bookService.getBooksInStock();
+
+        // then
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getStockQuantity()).isGreaterThan(0);
+        verify(bookRepository, times(1)).findBooksInStock();
+    }
+
+    @Test
+    @DisplayName("동적 검색 성공 (QueryDSL)")
+    void searchBooksByConditions_Success() {
+        // given
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Book> bookPage = new PageImpl<>(Arrays.asList(book), pageable, 1);
+        given(bookRepository.searchByConditions(anyString(), anyString(), anyString(), any(Pageable.class)))
+                .willReturn(bookPage);
+
+        // when
+        Page<BookResponse> responses = bookService.searchBooksByConditions(
+                "클린", "마틴", "프로그래밍", pageable);
+
+        // then
+        assertThat(responses.getContent()).hasSize(1);
+        verify(bookRepository, times(1)).searchByConditions(
+                anyString(), anyString(), anyString(), any(Pageable.class));
+    }
+
+    @Test
     @DisplayName("도서 수정 성공")
     void updateBook_Success() {
         // given
@@ -183,6 +281,19 @@ class BookServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getTitle()).isEqualTo("클린 코드 (개정판)");
         assertThat(response.getPrice()).isEqualTo(35000);
+        verify(bookRepository, times(1)).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("도서 수정 실패 - 존재하지 않는 도서")
+    void updateBook_Fail_NotFound() {
+        // given
+        given(bookRepository.findById(anyLong())).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> bookService.updateBook(999L, updateRequest))
+                .isInstanceOf(BookNotFoundException.class);
+
         verify(bookRepository, times(1)).findById(anyLong());
     }
 
@@ -202,6 +313,20 @@ class BookServiceTest {
     }
 
     @Test
+    @DisplayName("도서 삭제 실패 - 존재하지 않는 도서")
+    void deleteBook_Fail_NotFound() {
+        // given
+        given(bookRepository.findById(anyLong())).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> bookService.deleteBook(999L))
+                .isInstanceOf(BookNotFoundException.class);
+
+        verify(bookRepository, times(1)).findById(anyLong());
+        verify(bookRepository, never()).delete(any(Book.class));
+    }
+
+    @Test
     @DisplayName("재고 증가 성공")
     void increaseStock_Success() {
         // given
@@ -213,6 +338,19 @@ class BookServiceTest {
 
         // then
         assertThat(response.getStockQuantity()).isEqualTo(initialStock + 50);
+        verify(bookRepository, times(1)).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("재고 증가 실패 - 존재하지 않는 도서")
+    void increaseStock_Fail_NotFound() {
+        // given
+        given(bookRepository.findById(anyLong())).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> bookService.increaseStock(999L, 50))
+                .isInstanceOf(BookNotFoundException.class);
+
         verify(bookRepository, times(1)).findById(anyLong());
     }
 
@@ -241,6 +379,19 @@ class BookServiceTest {
         assertThatThrownBy(() -> bookService.decreaseStock(1L, 200))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("재고가 부족합니다");
+
+        verify(bookRepository, times(1)).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("재고 감소 실패 - 존재하지 않는 도서")
+    void decreaseStock_Fail_NotFound() {
+        // given
+        given(bookRepository.findById(anyLong())).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> bookService.decreaseStock(999L, 30))
+                .isInstanceOf(BookNotFoundException.class);
 
         verify(bookRepository, times(1)).findById(anyLong());
     }
