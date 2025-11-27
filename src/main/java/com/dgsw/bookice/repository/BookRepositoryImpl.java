@@ -38,14 +38,12 @@ public class BookRepositoryImpl implements BookRepositoryCustom {
             builder.and(book.category.eq(category));
         }
 
-        // 전체 개수 조회
         Long total = queryFactory
                 .select(book.count())
                 .from(book)
                 .where(builder)
                 .fetchOne();
 
-        // 페이징된 결과 조회
         List<Book> books = queryFactory
                 .selectFrom(book)
                 .where(builder)
